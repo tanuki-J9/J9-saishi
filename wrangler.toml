@@ -1,0 +1,7 @@
+name = "j9-saishi"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "."
+
+[[kv_namespaces]]
+binding = "KV"
+id = "ed9833dc2778410dad02d6253367fe43"
