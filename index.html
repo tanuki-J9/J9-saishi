@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>元梦之星创作赛事进程管理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <style>
+        .glass-panel { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15); }
+        .header-bg { background-image: url('https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?w=1600&q=80'); background-size: cover; background-position: center; }
+        .card-hover { cursor: pointer; transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-color: #a78bfa; }
+        .stage-creation { border-bottom: 3px solid #34A853; }
+        .stage-play { border-bottom: 3px solid #4285F4; }
+        .stage-review { border-bottom: 3px solid #FBBC04; }
+        .stage-public { border-bottom: 3px solid #A142F4; }
+        .toggle-btn:active { transform: scale(0.95); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .timeline-bar { padding: 2px 4px; font-size: 10px; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; min-height: 18px; border-radius: 2px; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans antialiased min-h-screen flex flex-col">
+
+    <header class="header-bg relative min-h-[320px] flex flex-col items-center justify-center pt-8 pb-10 px-8 shadow-lg shrink-0">
+        <div class="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black/70"></div>
+        <h1 class="relative z-10 text-4xl md:text-5xl font-extrabold text-white tracking-wider drop-shadow-2xl mb-8 text-center w-full">
+            ✨ 元梦之星创作赛事管理 ✨
+        </h1>
+
+        <!-- 云同步工具栏 -->
+        <div class="relative z-10 flex items-center gap-2 mb-4">
+            <button onclick="cloudPull()" id="btn-pull" class="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-white/30 backdrop-blur-sm transition">
+                <i class="fa-solid fa-cloud-arrow-down"></i> 从云端拉取
+            </button>
+            <button onclick="cloudPush()" id="btn-push" class="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-white/30 backdrop-blur-sm transition">
+                <i class="fa-solid fa-cloud-arrow-up"></i> 推送到云端
+            </button>
+            <button onclick="pushToGitHub()" id="btn-github" class="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-white/30 backdrop-blur-sm transition">
+                <i class="fa-brands fa-github"></i> 推送到 GitHub
+            </button>
+            <button onclick="document.getElementById('settingsModal').classList.remove('hidden')" class="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white/70 text-xs px-2 py-1.5 rounded-lg border border-white/20 backdrop-blur-sm transition" title="配置云同步">
+                <i class="fa-solid fa-sliders"></i>
+            </button>
+            <span id="sync-status" class="text-white/60 text-[10px] ml-1"></span>
+        </div>
+
+        <div class="relative z-10 flex flex-col md:flex-row gap-6 justify-center w-full max-w-5xl">
+            <div class="glass-panel p-4 rounded-2xl w-full md:w-80 transition hover:scale-[1.02]">
+                <div class="flex items-center text-red-600 text-base font-bold mb-3 border-b border-red-200 pb-2">
+                    <i class="fa-solid fa-bell mr-2"></i> 阶段变更提醒
+                </div>
+                <ul class="space-y-2 text-xs text-gray-700" id="stage-reminder-list"></ul>
+            </div>
+
+            <div class="glass-panel p-4 rounded-2xl w-full md:w-80 transition hover:scale-[1.02]">
+                <div class="flex items-center text-red-600 text-base font-bold mb-3 border-b border-red-200 pb-2">
+                    <i class="fa-solid fa-gift mr-2"></i> 发奖遗漏提醒
+                </div>
+                <ul class="space-y-2 text-xs text-gray-700" id="reward-reminder-list"></ul>
+            </div>
+        </div>
+    </header>
+
+    <div class="w-full bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
+        <div class="max-w-[1600px] mx-auto px-4">
+            <div class="flex space-x-8 -mb-px" id="tab-nav">
+                <button onclick="switchTab('overview')" id="tab-btn-overview" class="py-4 px-1 border-b-4 border-blue-600 font-bold text-blue-600 text-base transition">赛事总览</button>
+                <button onclick="switchTab('data')" id="tab-btn-data" class="py-4 px-1 border-b-4 border-transparent font-medium text-gray-500 hover:text-gray-700 text-base transition">赛事数据</button>
+            </div>
+        </div>
+    </div>
+
+    <main class="flex-grow w-full max-w-[1800px] mx-auto px-4 sm:px-6 py-6 relative z-30">
+        
+        <div id="tab-content-overview" style="display:flex" class="flex-col lg:flex-row gap-8">
+            <div class="w-full lg:w-[60%] flex-shrink-0 space-y-6">
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 sticky top-20">
+                    <div class="flex justify-between items-center mb-4 border-b pb-4">
+                        <div class="flex items-center space-x-3">
+                            <h2 class="text-2xl font-bold text-gray-800"><i class="fa-regular fa-calendar-days mr-2 text-blue-500"></i>排期日历</h2>
+                            <select id="season-filter" onchange="renderAll()" class="border border-gray-300 rounded px-2 py-1 text-sm outline-none focus:border-blue-500 font-bold text-gray-600 cursor-pointer">
+                                <option value="all">全部时间段</option>
+                            </select>
+                            <button onclick="document.getElementById('seasonConfigModal').classList.remove('hidden')" title="配置赛季时间" class="text-gray-400 hover:text-blue-500 transition">
+                                <i class="fa-solid fa-gear"></i>
+                            </button>
+                        </div>
+                        <button onclick="document.getElementById('createModal').classList.remove('hidden')" class="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 text-white font-bold py-2.5 px-6 rounded-lg shadow hover:scale-105 transition text-sm">
+                            <i class="fa-solid fa-plus mr-1"></i>新建赛事
+                        </button>
+                    </div>
+
+                    <div class="border rounded-xl overflow-hidden bg-white shadow-sm">
+                        <div class="flex justify-between items-center bg-gray-50 px-6 py-4 border-b">
+                            <button onclick="changeMonth(-1)" class="text-gray-500 hover:text-blue-600 p-2 rounded bg-white shadow-sm border"><i class="fa-solid fa-chevron-left"></i></button>
+                            <h3 id="month-year-display" class="text-xl font-bold text-gray-800"></h3>
+                            <button onclick="changeMonth(1)" class="text-gray-500 hover:text-blue-600 p-2 rounded bg-white shadow-sm border"><i class="fa-solid fa-chevron-right"></i></button>
+                        </div>
+                        <div class="grid grid-cols-7 bg-gray-100/60 text-center font-bold text-gray-600 py-3 text-sm border-b">
+                            <div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div class="text-red-500">六</div><div class="text-red-500">日</div>
+                        </div>
+                        <div class="grid grid-cols-7 bg-white text-sm" id="calendar-grid"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="w-full lg:w-[40%] flex flex-col space-y-6 pl-2 lg:pl-6 border-l border-gray-100">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-800 mb-3 border-l-4 border-blue-500 pl-2">进行中 / 结算中</h2>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3" id="ongoing-events-container"></div>
+                </div>
+                <div class="mt-6">
+                    <h2 class="text-lg font-bold text-gray-800 mb-3 border-l-4 border-gray-400 pl-2 flex justify-between items-center"><span>已归档赛事</span></h2>
+                    <div class="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar" id="ended-events-container"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="tab-content-data" style="display:none" class="flex-col lg:flex-row gap-8">
+            
+            <div class="flex-grow space-y-6">
+                <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex justify-between items-center sticky top-20 z-10">
+                    <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-chart-pie text-indigo-500 mr-2"></i>多维数据统计看板</h2>
+                    <p class="text-xs text-gray-500">每个图表均可独立切换分析维度</p>
+                </div>
+
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 col-span-1">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-base font-bold text-gray-800 border-l-4 border-indigo-500 pl-2">有效地图投稿趋势</h3>
+                            <select id="chart-dim-maps" onchange="renderMapChart()" class="border border-indigo-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-500 font-bold text-indigo-600 bg-indigo-50 cursor-pointer transition">
+                                <option value="event">按赛事维度</option>
+                                <option value="month">按自然月度</option>
+                                <option value="season">按赛季汇总</option>
+                            </select>
+                        </div>
+                        <div id="chart-maps" class="w-full h-64"></div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 col-span-1">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-base font-bold text-gray-800 border-l-4 border-yellow-500 pl-2">结算金额统计 (元)</h3>
+                            <select id="chart-dim-amounts" onchange="renderAmountChart()" class="border border-yellow-200 rounded px-2 py-1 text-xs outline-none focus:border-yellow-500 font-bold text-yellow-600 bg-yellow-50 cursor-pointer transition">
+                                <option value="event">按赛事维度</option>
+                                <option value="month">按自然月度</option>
+                                <option value="season">按赛季汇总</option>
+                            </select>
+                        </div>
+                        <div id="chart-amounts" class="w-full h-64"></div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 col-span-1 xl:col-span-2">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-base font-bold text-gray-800 border-l-4 border-green-500 pl-2">各发奖数量明细 (个)</h3>
+                            <select id="chart-dim-counts" onchange="renderCountChart()" class="border border-green-200 rounded px-2 py-1 text-xs outline-none focus:border-green-500 font-bold text-green-600 bg-green-50 cursor-pointer transition">
+                                <option value="event">按赛事维度</option>
+                                <option value="month">按自然月度</option>
+                                <option value="season">按赛季汇总</option>
+                            </select>
+                        </div>
+                        <div id="chart-counts" class="w-full h-64"></div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="w-full lg:w-80 flex-shrink-0 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[750px] sticky top-20">
+                <div class="p-4 border-b border-gray-100 bg-gray-50">
+                    <h3 class="font-bold text-gray-800"><i class="fa-solid fa-list-ul text-blue-500 mr-2"></i>全量赛事数据录入</h3>
+                    <p class="text-xs text-gray-500 mt-1">点击赛事录入各项详细数据，左侧图表实时更新。</p>
+                </div>
+                <ul class="flex-grow overflow-y-auto custom-scrollbar p-2 space-y-1" id="data-event-list"></ul>
+            </div>
+            
+        </div>
+    </main>
+
+    <div id="createModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center">
+        <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-6 m-4 relative">
+            <button onclick="closeCreateModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            <h2 class="text-xl font-bold mb-4 text-gray-800 border-b pb-2">新建创作赛事</h2>
+            <form id="create-event-form" class="space-y-4">
+                <div class="grid grid-cols-6 gap-3">
+                    <div class="col-span-3"><label class="block text-sm font-medium text-gray-700 mb-1">赛事名称 *</label><input type="text" id="ev-title" required class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></div>
+                    <div class="col-span-2"><label class="block text-sm font-medium text-gray-700 mb-1">赛事总奖金 (元) *</label><input type="number" id="ev-prize" required min="0" class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></div>
+                    <div class="col-span-1"><label class="block text-sm font-medium text-gray-700 mb-1">所属赛季</label><select id="ev-season" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></select></div>
+                </div>
+                <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                    <div class="grid grid-cols-5 gap-2 mb-3 border-b border-blue-200/50 pb-3">
+                        <div><label class="block text-xs font-medium text-gray-700 mb-1">1. 创作期</label><input type="date" id="ev-start" required class="w-full border border-gray-300 rounded px-1.5 py-1 text-xs"></div>
+                        <div><label class="block text-xs font-medium text-gray-700 mb-1">2. 游玩期</label><input type="date" id="ev-play" required class="w-full border border-gray-300 rounded px-1.5 py-1 text-xs"></div>
+                        <div><label class="block text-xs font-medium text-gray-700 mb-1">3. 评审期</label><input type="date" id="ev-review" required class="w-full border border-gray-300 rounded px-1.5 py-1 text-xs"></div>
+                        <div><label class="block text-xs font-medium text-gray-700 mb-1">4. 公示期</label><input type="date" id="ev-public" required class="w-full border border-gray-300 rounded px-1.5 py-1 text-xs"></div>
+                        <div><label class="block text-[10px] font-bold text-red-500 mb-1">5. 赛事结束</label><input type="date" id="ev-end" required class="w-full border border-red-300 rounded px-1.5 py-1 text-xs"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="block text-xs font-medium text-gray-700 mb-1">美术资源链接 (选填)</label><input type="url" id="ev-art-link" class="w-full border border-gray-300 rounded px-2 py-1 text-xs outline-none"></div>
+                        <div><label class="block text-xs font-medium text-gray-700 mb-1">活动表格链接 (选填)</label><input type="url" id="ev-table-link" class="w-full border border-gray-300 rounded px-2 py-1 text-xs outline-none"></div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">头图 URL *</label>
+                    <div class="flex gap-2 items-center">
+                        <input type="url" id="ev-image-url" required placeholder="请输入头图的在线链接" class="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                        <button type="button" onclick="previewCreateImg()" class="bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs px-3 py-1.5 rounded-lg border border-gray-300 transition">预览</button>
+                    </div>
+                    <div class="mt-2 w-full h-20 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 hidden" id="create-img-preview-box">
+                        <img id="create-img-preview-show" src="" class="w-full h-full object-cover">
+                    </div>
+                </div>
+                <div class="pt-1 flex justify-end space-x-3">
+                    <button type="button" onclick="closeCreateModal()" class="px-5 py-1.5 border border-gray-300 rounded text-sm hover:bg-gray-100">取消</button>
+                    <button type="submit" class="px-5 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 shadow">确认创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="editModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-60 flex items-center justify-center">
+        <div class="bg-white w-full max-w-md rounded-xl overflow-hidden relative shadow-2xl">
+            <button onclick="document.getElementById('editModal').classList.add('hidden')" class="absolute top-2 right-2 bg-black/40 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-black/80 z-20"><i class="fa-solid fa-xmark text-xs"></i></button>
+            <form id="edit-event-form">
+                <input type="hidden" id="edit-card-id"><input type="hidden" id="edit-img-src-hidden">
+                <div class="aspect-[456/256] relative group" onclick="document.getElementById('edit-image-input').click()">
+                    <img id="edit-img-preview" src="" class="w-full h-full object-cover">
+                    <div class="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition duration-300">
+                        <i class="fa-solid fa-link text-white text-2xl mb-1"></i><span class="text-white text-xs font-bold tracking-widest">更改头图 URL</span>
+                    </div>
+                </div>
+                <div class="px-5 pt-3 pb-1">
+                    <div class="flex gap-2">
+                        <input type="url" id="edit-image-url" placeholder="头图 URL" class="flex-1 border border-gray-300 rounded px-2 py-1 text-xs outline-none focus:border-blue-500">
+                        <button type="button" onclick="applyEditImgUrl()" class="bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded border border-gray-200 transition">应用</button>
+                    </div>
+                </div>
+                <div class="p-5">
+                    <div class="grid grid-cols-6 gap-2 mb-3">
+                        <div class="col-span-3"><input type="text" id="edit-title" required class="w-full text-base font-bold text-gray-800 border-b border-gray-300 focus:outline-none focus:border-blue-500 pb-1" placeholder="名称"></div>
+                        <div class="col-span-2"><input type="number" id="edit-prize" required min="0" class="w-full text-sm font-bold text-gray-800 border-b border-gray-300 focus:outline-none focus:border-blue-500 pb-1.5" placeholder="奖金(元)"></div>
+                        <div class="col-span-1"><select id="edit-season" class="w-full text-xs border border-gray-300 rounded px-1 py-1 outline-none focus:border-blue-500 bg-gray-50"></select></div>
+                    </div>
+                    <div class="grid grid-cols-5 gap-1 text-[10px] mb-3 border-b border-gray-100 pb-3">
+                        <div><label class="block text-gray-500 mb-0.5">创作</label><input type="date" id="edit-d1" required class="w-full border rounded px-1 py-1 outline-none"></div>
+                        <div><label class="block text-gray-500 mb-0.5">游玩</label><input type="date" id="edit-d2" required class="w-full border rounded px-1 py-1 outline-none"></div>
+                        <div><label class="block text-gray-500 mb-0.5">评审</label><input type="date" id="edit-d3" required class="w-full border rounded px-1 py-1 outline-none"></div>
+                        <div><label class="block text-gray-500 mb-0.5">公示</label><input type="date" id="edit-d4" required class="w-full border rounded px-1 py-1 outline-none"></div>
+                        <div><label class="block text-red-500 font-bold mb-0.5">结束</label><input type="date" id="edit-d5" required class="w-full border border-red-300 rounded px-1 py-1 outline-none"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs mb-5">
+                        <div><label class="block text-gray-500 mb-0.5">美术资源</label><input type="url" id="edit-art-link" class="w-full border rounded px-2 py-1 outline-none"></div>
+                        <div><label class="block text-gray-500 mb-0.5">活动表格</label><input type="url" id="edit-table-link" class="w-full border rounded px-2 py-1 outline-none"></div>
+                    </div>
+                    <div class="flex space-x-3 mt-2">
+                        <button type="button" onclick="deleteCurrentEvent()" class="w-1/3 bg-red-50 text-red-600 border border-red-100 rounded py-2 text-sm font-bold hover:bg-red-100 transition">删除</button>
+                        <button type="submit" class="w-2/3 bg-blue-600 text-white rounded py-2 text-sm font-bold shadow-md hover:bg-blue-700 transition">保存</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="seasonConfigModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-60 flex items-center justify-center">
+        <div class="bg-white w-full max-w-sm rounded-xl overflow-hidden relative shadow-2xl p-6">
+            <button onclick="document.getElementById('seasonConfigModal').classList.add('hidden')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark"></i></button>
+            <h2 class="text-lg font-bold mb-4 text-gray-800 border-b pb-2"><i class="fa-solid fa-gear text-blue-500 mr-2"></i>配置新赛季</h2>
+            <form id="create-season-form" class="space-y-4">
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">赛季名称</label><input type="text" id="season-name" required class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="block text-xs font-medium text-gray-700 mb-1">开始时间</label><input type="date" id="season-start" required class="w-full border border-gray-300 rounded px-2 py-1 text-xs"></div>
+                    <div><label class="block text-xs font-medium text-gray-700 mb-1">结束时间</label><input type="date" id="season-end" required class="w-full border border-gray-300 rounded px-2 py-1 text-xs"></div>
+                </div>
+                <button type="submit" class="w-full mt-2 bg-blue-600 text-white rounded py-2 text-sm font-bold shadow-md hover:bg-blue-700 transition">保存赛季</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="dataModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-60 flex items-center justify-center">
+        <div class="bg-white w-full max-w-sm rounded-xl overflow-hidden relative shadow-2xl">
+            <div class="bg-indigo-50 border-b border-indigo-100 p-4 relative">
+                <h2 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-pen-to-square text-indigo-500 mr-2"></i>录入赛事数据</h2>
+                <p id="data-modal-event-name" class="text-xs text-indigo-600 font-bold mt-1">当前赛事：</p>
+                <button onclick="document.getElementById('dataModal').classList.add('hidden')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <form id="data-entry-form" class="p-5">
+                <input type="hidden" id="data-card-id">
+                <div class="grid grid-cols-3 gap-2 mb-4">
+                    <div><label class="block text-[10px] font-bold text-gray-500 mb-1">游玩数</label><input type="number" id="data-play-count" min="0" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs outline-none focus:border-indigo-500" placeholder="0"></div>
+                    <div><label class="block text-[10px] font-bold text-gray-500 mb-1">地图总数</label><input type="number" id="data-map-count" min="0" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs outline-none focus:border-indigo-500" placeholder="0"></div>
+                    <div><label class="block text-[10px] font-bold text-gray-500 mb-1">有效地图数 *</label><input type="number" id="data-valid-map" required min="0" class="w-full border border-indigo-300 bg-indigo-50 rounded px-2 py-1.5 text-xs outline-none focus:border-indigo-500" placeholder="必填(图表用)"></div>
+                </div>
+
+                <div id="data-ended-fields" class="hidden">
+                    <div class="border-t border-dashed border-gray-200 my-4"></div>
+                    <p class="text-xs font-bold text-red-500 mb-3"><i class="fa-solid fa-flag-checkered mr-1"></i> 结算专属数据录入 (图表用)</p>
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <div class="bg-gray-50 p-2 rounded border border-gray-100"><label class="block text-[10px] font-bold text-gray-600 mb-1">单项奖数量</label><input type="number" id="data-single-count" min="0" class="w-full border border-gray-300 rounded px-2 py-1 text-xs outline-none" placeholder="0"></div>
+                        <div class="bg-gray-50 p-2 rounded border border-gray-100"><label class="block text-[10px] font-bold text-gray-600 mb-1">单项奖金总额</label><input type="number" id="data-single-total" min="0" class="w-full border border-gray-300 rounded px-2 py-1 text-xs outline-none" placeholder="元"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <div class="bg-gray-50 p-2 rounded border border-gray-100"><label class="block text-[10px] font-bold text-gray-600 mb-1">人气奖数量</label><input type="number" id="data-pop-count" min="0" class="w-full border border-gray-300 rounded px-2 py-1 text-xs outline-none" placeholder="0"></div>
+                        <div class="bg-gray-50 p-2 rounded border border-gray-100"><label class="block text-[10px] font-bold text-gray-600 mb-1">人气奖金总额</label><input type="number" id="data-pop-total" min="0" class="w-full border border-gray-300 rounded px-2 py-1 text-xs outline-none" placeholder="元"></div>
+                    </div>
+                    <div class="mb-4"><label class="block text-[10px] font-bold text-gray-600 mb-1">公示表 (链接)</label><input type="url" id="data-public-link" class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs outline-none focus:border-indigo-500" placeholder="https://..."></div>
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 text-white rounded py-2 text-sm font-bold shadow-md hover:bg-indigo-700 transition">保存赛事数据并刷新图表</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 云同步设置弹窗 -->
+    <div id="settingsModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-60 flex items-center justify-center">
+        <div class="bg-white w-full max-w-sm rounded-xl overflow-hidden relative shadow-2xl p-6">
+            <button onclick="document.getElementById('settingsModal').classList.add('hidden')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark"></i></button>
+            <h2 class="text-lg font-bold mb-4 text-gray-800 border-b pb-2"><i class="fa-solid fa-sliders text-blue-500 mr-2"></i>云同步配置</h2>
+            <form id="settings-form" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Worker URL</label>
+                    <input type="url" id="cfg-worker-url" class="w-full border border-gray-300 rounded px-3 py-1.5 text-xs outline-none focus:border-blue-500" placeholder="https://yuanmeng-api.xxx.workers.dev">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Auth Token</label>
+                    <input type="password" id="cfg-auth-token" class="w-full border border-gray-300 rounded px-3 py-1.5 text-xs outline-none focus:border-blue-500" placeholder="访问密码">
+                </div>
+                <div class="border-t border-gray-100 pt-3">
+                    <label class="block text-xs font-bold text-gray-600 mb-1">GitHub Token</label>
+                    <input type="password" id="cfg-github-token" class="w-full border border-gray-300 rounded px-3 py-1.5 text-xs outline-none focus:border-blue-500" placeholder="ghp_xxxx">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">GitHub 仓库 (格式: 用户名/仓库名)</label>
+                    <input type="text" id="cfg-github-repo" class="w-full border border-gray-300 rounded px-3 py-1.5 text-xs outline-none focus:border-blue-500" placeholder="tanuki-J9/J9-1">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">GitHub 文件路径</label>
+                    <input type="text" id="cfg-github-path" class="w-full border border-gray-300 rounded px-3 py-1.5 text-xs outline-none focus:border-blue-500" placeholder="index.html">
+                </div>
+                <button type="submit" class="w-full mt-2 bg-blue-600 text-white rounded py-2 text-sm font-bold shadow hover:bg-blue-700 transition">保存配置</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ================= 云同步配置 =================
+        const DEFAULT_CONFIG = {
+            workerUrl: '',
+            authToken: '',
+            githubToken: '',
+            githubRepo: 'tanuki-J9/J9-1',
+            githubPath: 'index.html'
+        };
+        const CFG_KEY = 'yuanmeng_config';
+        function getConfig() {
+            const saved = localStorage.getItem(CFG_KEY);
+            return saved ? { ...DEFAULT_CONFIG, ...JSON.parse(saved) } : { ...DEFAULT_CONFIG };
+        }
+        function saveConfig(cfg) { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }
+
+        // 设置表单初始化
+        document.getElementById('settings-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            saveConfig({
+                workerUrl: document.getElementById('cfg-worker-url').value,
+                authToken: document.getElementById('cfg-auth-token').value,
+                githubToken: document.getElementById('cfg-github-token').value,
+                githubRepo: document.getElementById('cfg-github-repo').value,
+                githubPath: document.getElementById('cfg-github-path').value,
+            });
+            document.getElementById('settingsModal').classList.add('hidden');
+            setSyncStatus('✅ 配置已保存', 2000);
+        });
+        document.getElementById('settingsModal').addEventListener('click', function(e) {
+            if (e.target === this) this.classList.add('hidden');
+        });
+        // 打开设置弹窗时回填已保存的值
+        document.querySelector('[onclick*="settingsModal"]') && document.getElementById('settingsModal').addEventListener('animationend', fillSettingsForm);
+        function fillSettingsForm() {
+            const cfg = getConfig();
+            document.getElementById('cfg-worker-url').value = cfg.workerUrl || '';
+            document.getElementById('cfg-auth-token').value = cfg.authToken || '';
+            document.getElementById('cfg-github-token').value = cfg.githubToken || '';
+            document.getElementById('cfg-github-repo').value = cfg.githubRepo || '';
+            document.getElementById('cfg-github-path').value = cfg.githubPath || '';
+        }
+        // 监听设置按鈕打开时回填
+        document.querySelectorAll('[onclick*="settingsModal"]').forEach(btn => {
+            btn.addEventListener('click', () => setTimeout(fillSettingsForm, 50));
+        });
+
+        function setSyncStatus(msg, clearMs) {
+            const el = document.getElementById('sync-status');
+            el.textContent = msg;
+            if (clearMs) setTimeout(() => el.textContent = '', clearMs);
+        }
+        function setBtnLoading(id, loading) {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            btn.disabled = loading;
+            btn.style.opacity = loading ? '0.6' : '1';
+        }
+
+        // 云端拉取
+        async function cloudPull() {
+            const cfg = getConfig();
+            if (!cfg.workerUrl || !cfg.authToken) {
+                return alert('请先点击⚙️配置 Worker URL 和 Token');
+            }
+            setBtnLoading('btn-pull', true);
+            setSyncStatus('云端拉取中...');
+            try {
+                const res = await fetch(`${cfg.workerUrl}/data`, {
+                    headers: { 'Authorization': `Bearer ${cfg.authToken}` }
+                });
+                if (!res.ok) throw new Error(`状态码 ${res.status}`);
+                const data = await res.json();
+                if (data.events) { timelineEvents = data.events; }
+                if (data.seasons) { seasons = data.seasons; }
+                saveData(); updateSeasonDropdowns(); renderAll();
+                if (document.getElementById('tab-content-data').style.display === 'flex') renderAllCharts();
+                setSyncStatus('✅ 拉取成功', 3000);
+            } catch(e) {
+                setSyncStatus('❌ 拉取失败: ' + e.message, 4000);
+            } finally {
+                setBtnLoading('btn-pull', false);
+            }
+        }
+
+        // 推送到云端
+        async function cloudPush() {
+            const cfg = getConfig();
+            if (!cfg.workerUrl || !cfg.authToken) {
+                return alert('请先点击⚙️配置 Worker URL 和 Token');
+            }
+            setBtnLoading('btn-push', true);
+            setSyncStatus('推送中...');
+            try {
+                const res = await fetch(`${cfg.workerUrl}/data`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${cfg.authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ events: timelineEvents, seasons: seasons })
+                });
+                if (!res.ok) throw new Error(`状态码 ${res.status}`);
+                setSyncStatus('✅ 已同步到云端', 3000);
+            } catch(e) {
+                setSyncStatus('❌ 推送失败: ' + e.message, 4000);
+            } finally {
+                setBtnLoading('btn-push', false);
+            }
+        }
+
+        // 推送到 GitHub
+        async function pushToGitHub() {
+            const cfg = getConfig();
+            if (!cfg.githubToken || !cfg.githubRepo || !cfg.githubPath) {
+                return alert('请先点击⚙️配置 GitHub Token、仓库和文件路径');
+            }
+            setBtnLoading('btn-github', true);
+            setSyncStatus('GitHub 推送中...');
+            try {
+                // 获取当前文件的 SHA
+                const apiBase = `https://api.github.com/repos/${cfg.githubRepo}/contents/${cfg.githubPath}`;
+                const getRes = await fetch(apiBase, {
+                    headers: {
+                        'Authorization': `Bearer ${cfg.githubToken}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+                let sha = null;
+                if (getRes.ok) {
+                    const fileInfo = await getRes.json();
+                    sha = fileInfo.sha;
+                }
+                // 获取当前页面 HTML 内容
+                const htmlContent = document.documentElement.outerHTML;
+                const base64Content = btoa(unescape(encodeURIComponent(htmlContent)));
+                // 推送
+                const putBody = {
+                    message: `更新赛事看板 ${new Date().toLocaleString('zh-CN')}`,
+                    content: base64Content,
+                };
+                if (sha) putBody.sha = sha;
+                const putRes = await fetch(apiBase, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${cfg.githubToken}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(putBody)
+                });
+                if (!putRes.ok) {
+                    const err = await putRes.json();
+                    throw new Error(err.message || `状态码 ${putRes.status}`);
+                }
+                setSyncStatus('✅ 已推送到 GitHub', 3000);
+            } catch(e) {
+                setSyncStatus('❌ GitHub 失败: ' + e.message, 4000);
+            } finally {
+                setBtnLoading('btn-github', false);
+            }
+        }
+
+        // 全局图表实例变量
+        let mapChart, amountChart, countChart;
+        // Fix #4: 初始化 currentCreateImgSrc
+        window.currentCreateImgSrc = "";
+
+        // Fix #5: 统一关闭新建弹窗并清空图片预览
+        function closeCreateModal() {
+            document.getElementById('createModal').classList.add('hidden');
+            document.getElementById('create-event-form').reset();
+            document.getElementById('create-img-preview-box').classList.add('hidden');
+            window.currentCreateImgSrc = "";
+        }
+
+        // 预览新建赛事头图
+        function previewCreateImg() {
+            const url = document.getElementById('ev-image-url').value.trim();
+            if (!url) return alert('请先输入头图 URL');
+            const preview = document.getElementById('create-img-preview-show');
+            const box = document.getElementById('create-img-preview-box');
+            preview.src = url;
+            box.classList.remove('hidden');
+            window.currentCreateImgSrc = url;
+        }
+
+        // 编辑弹窗应用头图 URL
+        function applyEditImgUrl() {
+            const url = document.getElementById('edit-image-url').value.trim();
+            if (!url) return alert('请先输入头图 URL');
+            document.getElementById('edit-img-preview').src = url;
+            document.getElementById('edit-img-src-hidden').value = url;
+        }
+
+        function parseDateObj(dateStr) { return new Date(dateStr + "T00:00:00").getTime(); }
+        function formatDateStr(ms) { let d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+        
+        function switchTab(tabId) {
+            // Fix #2 & #3: 统一用 JS 控制 display，并用 requestAnimationFrame 替代 setTimeout
+            const overviewEl = document.getElementById('tab-content-overview');
+            const dataEl = document.getElementById('tab-content-data');
+            overviewEl.style.display = tabId === 'overview' ? 'flex' : 'none';
+            dataEl.style.display = tabId === 'data' ? 'flex' : 'none';
+
+            const btnOverview = document.getElementById('tab-btn-overview');
+            const btnData = document.getElementById('tab-btn-data');
+
+            if (tabId === 'overview') {
+                btnOverview.className = "py-4 px-1 border-b-4 border-blue-600 font-bold text-blue-600 text-base transition";
+                btnData.className = "py-4 px-1 border-b-4 border-transparent font-medium text-gray-500 hover:text-gray-700 text-base transition";
+            } else {
+                btnOverview.className = "py-4 px-1 border-b-4 border-transparent font-medium text-gray-500 hover:text-gray-700 text-base transition";
+                btnData.className = "py-4 px-1 border-b-4 border-blue-600 font-bold text-blue-600 text-base transition";
+                renderDataEventList();
+                // Fix #3: 用 double rAF 确保 DOM 已完成布局再初始化 ECharts
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        initCharts();
+                        renderAllCharts();
+                    });
+                });
+            }
+        }
+        
+        function formatPrize(num) {
+            if (!num) return "0";
+            if (num >= 10000) { let v = num / 10000; return (Number.isInteger(v) ? v : v.toFixed(1)) + "万"; }
+            return num;
+        }
+
+        const realNow = new Date();
+        const TODAY_TIME = new Date(realNow.getFullYear(), realNow.getMonth(), realNow.getDate()).getTime(); 
+        let currentYear = realNow.getFullYear();
+        let currentMonth = realNow.getMonth(); 
+
+        const STORAGE_KEY = 'yuanmeng_events_v4';
+        const SEASON_KEY = 'yuanmeng_seasons_v2';
+        let timelineEvents = [];
+        let seasons = [];
+
+        function loadData() {
+            const savedSeasons = localStorage.getItem(SEASON_KEY);
+            if (savedSeasons) seasons = JSON.parse(savedSeasons);
+            else seasons = [];
+
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                timelineEvents = JSON.parse(saved);
+            } else {
+                timelineEvents = [];
+                saveData();
+            }
+            updateSeasonDropdowns();
+        }
+
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(timelineEvents));
+            localStorage.setItem(SEASON_KEY, JSON.stringify(seasons));
+        }
+
+        function updateSeasonDropdowns() {
+            let optionsHtml = ''; seasons.forEach(s => { optionsHtml += `<option value="${s.id}">${s.name}</option>`; });
+
+            const filterSelect = document.getElementById('season-filter'); let currentFilter = filterSelect.value;
+            filterSelect.innerHTML = '<option value="all">全部时间段</option>' + optionsHtml;
+            // Fix #7: 若原赛季已被删除则静默回退到 all 并提示
+            const validIds = ['all', ...seasons.map(s => s.id)];
+            if (currentFilter && !validIds.includes(currentFilter)) {
+                filterSelect.value = 'all';
+                console.warn('[看板] 原选中赛季已删除，已重置为全部');
+            } else {
+                filterSelect.value = currentFilter || 'all';
+            }
+
+            document.getElementById('ev-season').innerHTML = '<option value="none">暂不分配赛季</option>' + optionsHtml;
+            document.getElementById('edit-season').innerHTML = '<option value="none">暂不分配</option>' + optionsHtml;
+        }
+
+        function getFilteredEvents() {
+            const filterId = document.getElementById('season-filter').value;
+            if (filterId === 'all') return timelineEvents;
+            const season = seasons.find(s => s.id === filterId);
+            if (!season) return timelineEvents;
+            return timelineEvents.filter(ev => ev.creation >= season.start && ev.creation <= season.end);
+        }
+
+        document.getElementById('create-season-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const start = parseDateObj(document.getElementById('season-start').value), end = parseDateObj(document.getElementById('season-end').value);
+            if(start >= end) return alert("赛季结束时间必须大于开始时间！");
+            seasons.push({ id: 's-' + Date.now(), name: document.getElementById('season-name').value, start: start, end: end });
+            saveData(); updateSeasonDropdowns(); document.getElementById('seasonConfigModal').classList.add('hidden'); this.reset();
+        });
+
+        // ================= Tab 1 相关函数 =================
+        function calculateCardUI(ev) {
+            let phaseName = "未开始"; let phaseColor = "text-gray-500"; let borderClass = "border-gray-200"; let nextStr = "即将开始";
+            if (TODAY_TIME >= ev.creation && TODAY_TIME < ev.play) { phaseName = "创作期"; phaseColor = "text-green-600"; borderClass = "stage-creation"; nextStr = `距游玩期还剩 <span class="font-bold text-green-600 text-xs">${Math.ceil((ev.play - TODAY_TIME)/86400000)}</span> 天`; } 
+            else if (TODAY_TIME >= ev.play && TODAY_TIME < ev.review) { phaseName = "游玩期"; phaseColor = "text-blue-600"; borderClass = "stage-play"; nextStr = `距评审期还剩 <span class="font-bold text-blue-600 text-xs">${Math.ceil((ev.review - TODAY_TIME)/86400000)}</span> 天`; } 
+            else if (TODAY_TIME >= ev.review && TODAY_TIME < ev.public) { phaseName = "评审期"; phaseColor = "text-yellow-600"; borderClass = "stage-review"; nextStr = `距公示期还剩 <span class="font-bold text-yellow-600 text-xs">${Math.ceil((ev.public - TODAY_TIME)/86400000)}</span> 天`; } 
+            else if (TODAY_TIME >= ev.public) { phaseName = "公示期"; phaseColor = "text-purple-600"; borderClass = "stage-public"; let days = Math.ceil((ev.end - TODAY_TIME)/86400000); nextStr = days > 0 ? `距结束还剩 <span class="font-bold text-purple-600 text-xs">${days}</span> 天` : `<span class="text-red-500 font-bold">赛事已结束</span>`; }
+            return { phaseName, phaseColor, borderClass, nextStr };
+        }
+
+        function renderCards() {
+            let ongoingHtml = ''; let endedHtml = '';
+            let sortedEvents = [...getFilteredEvents()].sort((a,b) => b.creation - a.creation);
+            
+            sortedEvents.forEach(ev => {
+                let isEnded = TODAY_TIME >= ev.end;
+                let isFullyIssued = ev.rewards.cash && ev.rewards.prop;
+                let prizeBadge = `<div class="absolute bottom-1 right-1 bg-black/70 text-yellow-400 px-1.5 py-0.5 rounded text-[10px] font-bold shadow tracking-wide"><i class="fa-solid fa-coins mr-1"></i>${formatPrize(ev.prize || 0)}</div>`;
+                
+                if (isEnded && isFullyIssued) {
+                    endedHtml += `<div class="flex items-center bg-white p-2 rounded-lg shadow-sm border border-gray-100 cursor-pointer card-hover" onclick="openEditModal('${ev.id}')"><img class="w-16 h-10 rounded object-cover mr-3 grayscale opacity-80" src="${ev.imgSrc}"><div class="flex-grow"><h4 class="font-bold text-gray-800 text-xs line-clamp-1">${ev.name}</h4><span class="text-[10px] text-green-600 font-bold">全部发放</span></div><div class="flex flex-col gap-1"><button onclick="toggleReward(event, '${ev.id}', 'cash')" class="text-[9px] bg-gray-100 px-1.5 py-0.5 rounded text-gray-500 hover:bg-gray-200">撤销现金</button><button onclick="toggleReward(event, '${ev.id}', 'prop')" class="text-[9px] bg-gray-100 px-1.5 py-0.5 rounded text-gray-500 hover:bg-gray-200">撤销道具</button></div></div>`;
+                } else if (isEnded && !isFullyIssued) {
+                    let cashBtn = ev.rewards.cash ? `<button onclick="toggleReward(event, '${ev.id}', 'cash')" class="toggle-btn px-2 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-600 border border-green-200">已发</button>` : `<button onclick="toggleReward(event, '${ev.id}', 'cash')" class="toggle-btn px-2 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-600 border border-red-200">未发</button>`;
+                    let propBtn = ev.rewards.prop ? `<button onclick="toggleReward(event, '${ev.id}', 'prop')" class="toggle-btn px-2 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-600 border border-green-200">已发</button>` : `<button onclick="toggleReward(event, '${ev.id}', 'prop')" class="toggle-btn px-2 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-600 border border-red-200">未发</button>`;
+                    ongoingHtml += `<div onclick="openEditModal('${ev.id}')" class="bg-orange-50/40 rounded-lg shadow-sm card-hover overflow-hidden border border-orange-200 flex flex-col transition-all"><div class="w-full aspect-[456/256] bg-gray-200 relative"><img src="${ev.imgSrc}" class="w-full h-full object-cover"><div class="absolute top-1 right-1 bg-orange-500/90 text-white px-1.5 py-0.5 rounded text-[10px] font-bold shadow">结算中</div>${prizeBadge}</div><div class="p-2.5 flex-grow flex flex-col"><h3 class="text-xs font-bold text-gray-800 mb-0.5 line-clamp-1">${ev.name}</h3><p class="text-[9px] text-red-500 font-bold mb-2">已结束 ${Math.floor((TODAY_TIME - ev.end) / 86400000)} 天</p><div class="mt-auto flex flex-col gap-1 border-t border-orange-100 pt-1.5"><div class="flex justify-between items-center"><span class="text-gray-600 text-[10px]">现金:</span>${cashBtn}</div><div class="flex justify-between items-center"><span class="text-gray-600 text-[10px]">道具:</span>${propBtn}</div></div></div></div>`;
+                } else {
+                    let ui = calculateCardUI(ev);
+                    let artBtnHtml = ev.artLink ? `<button onclick="event.stopPropagation(); window.open('${ev.artLink}', '_blank')" class="flex-1 bg-blue-50 text-blue-600 hover:bg-blue-100 px-1 py-1 rounded text-[9px] font-bold transition flex items-center justify-center"><i class="fa-solid fa-palette mr-1"></i>资源</button>` : `<button disabled class="flex-1 bg-gray-100 text-gray-400 cursor-not-allowed px-1 py-1 rounded text-[9px] font-bold flex items-center justify-center"><i class="fa-solid fa-palette mr-1"></i>未配</button>`;
+                    let tableBtnHtml = ev.tableLink ? `<button onclick="event.stopPropagation(); window.open('${ev.tableLink}', '_blank')" class="flex-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-1 py-1 rounded text-[9px] font-bold transition flex items-center justify-center"><i class="fa-solid fa-table mr-1"></i>表格</button>` : `<button disabled class="flex-1 bg-gray-100 text-gray-400 cursor-not-allowed px-1 py-1 rounded text-[9px] font-bold flex items-center justify-center"><i class="fa-solid fa-table mr-1"></i>未配</button>`;
+                    ongoingHtml += `<div onclick="openEditModal('${ev.id}')" class="bg-white rounded-lg shadow-sm card-hover overflow-hidden border border-gray-100 ${ui.borderClass} flex flex-col"><div class="w-full aspect-[456/256] bg-gray-200 relative"><img src="${ev.imgSrc}" class="w-full h-full object-cover"><div class="absolute top-1 right-1 bg-white/95 px-1.5 py-0.5 rounded text-[10px] font-bold ${ui.phaseColor} shadow">${ui.phaseName}</div>${prizeBadge}</div><div class="p-2.5 flex-grow flex flex-col justify-between"><h3 class="text-xs font-bold text-gray-800 mb-1 line-clamp-1">${ev.name}</h3><p class="text-[10px] text-gray-500 mb-1"><i class="fa-regular fa-clock mr-1"></i> ${ui.nextStr}</p><div class="flex space-x-1.5 mt-auto pt-2 border-t border-gray-100">${artBtnHtml}${tableBtnHtml}</div></div></div>`;
+                }
+            });
+
+            document.getElementById('ongoing-events-container').innerHTML = ongoingHtml || '<div class="col-span-full text-gray-400 text-sm py-4">暂无符合条件的进行中赛事</div>';
+            document.getElementById('ended-events-container').innerHTML = endedHtml || '<div class="text-gray-400 text-sm py-2">暂无符合条件的归档赛事</div>';
+        }
+
+        function updateReminders() {
+            let stageHtml = ''; let rewardHtml = ''; let missingCount = 0;
+            let currentEvents = getFilteredEvents(); 
+            currentEvents.forEach(ev => {
+                let nextPhaseName = ''; let daysLeft = -1; let colorClass = '';
+                if (TODAY_TIME < ev.creation) { nextPhaseName = '创作期'; daysLeft = Math.ceil((ev.creation - TODAY_TIME)/86400000); colorClass = 'text-green-600'; } 
+                else if (TODAY_TIME >= ev.creation && TODAY_TIME < ev.play) { nextPhaseName = '游玩期'; daysLeft = Math.ceil((ev.play - TODAY_TIME)/86400000); colorClass = 'text-blue-600'; } 
+                else if (TODAY_TIME >= ev.play && TODAY_TIME < ev.review) { nextPhaseName = '评审期'; daysLeft = Math.ceil((ev.review - TODAY_TIME)/86400000); colorClass = 'text-yellow-600'; } 
+                else if (TODAY_TIME >= ev.review && TODAY_TIME < ev.public) { nextPhaseName = '公示期'; daysLeft = Math.ceil((ev.public - TODAY_TIME)/86400000); colorClass = 'text-purple-600'; }
+                if (daysLeft > 0 && daysLeft <= 3) {
+                    stageHtml += `<li class="bg-white/80 p-2 rounded-lg shadow-sm border border-gray-100 relative overflow-hidden"><div class="absolute left-0 top-0 bottom-0 w-1 bg-yellow-400"></div><span class="font-bold ${colorClass} ml-1">《${ev.name}》</span><br><span class="ml-1">距进入${nextPhaseName}仅剩 <span class="font-bold text-red-500">${daysLeft}</span> 天</span></li>`;
+                }
+
+                if (TODAY_TIME >= ev.end) {
+                    let missingArr = [];
+                    if (!ev.rewards.cash) missingArr.push("现金"); if (!ev.rewards.prop) missingArr.push("道具");
+                    if (missingArr.length > 0) {
+                        missingCount++; let daysEnded = Math.floor((TODAY_TIME - ev.end) / 86400000);
+                        rewardHtml += `<li class="bg-red-50 p-2.5 rounded-lg shadow-sm border border-red-200 relative overflow-hidden mb-2"><div class="absolute left-0 top-0 bottom-0 w-1 bg-red-500"></div><span class="font-bold text-red-700 ml-1">《${ev.name}》</span><br><span class="ml-1 text-gray-600">已结束 <span class="font-bold text-red-500">${daysEnded}</span> 天</span><br><span class="text-red-600 mt-1 ml-1 font-bold inline-block bg-red-100 px-2 py-0.5 rounded text-[10px]">【 ${missingArr.join(" + ")} 】 未发放！</span></li>`;
+                    }
+                }
+            });
+            document.getElementById('stage-reminder-list').innerHTML = stageHtml || `<li class="text-gray-500 text-center py-2 bg-white/50 rounded-lg">当前无近期变更阶段赛事</li>`;
+            document.getElementById('reward-reminder-list').innerHTML = missingCount > 0 ? rewardHtml : `<li class="text-green-600 font-bold text-center py-3 bg-white/70 rounded-lg border border-green-100">🎉 当前无遗漏发奖</li>`;
+        }
+
+        function renderCalendar(year, month) {
+            const grid = document.getElementById('calendar-grid');
+            const monthNames = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
+            document.getElementById('month-year-display').innerText = `${year}年 ${monthNames[month]}`;
+            
+            let firstDay = new Date(year, month, 1).getDay(); let emptyCells = firstDay === 0 ? 6 : firstDay - 1; 
+            let daysInMonth = new Date(year, month + 1, 0).getDate();
+            let html = '';
+            for (let i = 0; i < emptyCells; i++) html += `<div class="h-24 lg:h-28 border-b border-r border-gray-100 bg-gray-50/50"></div>`;
+            
+            let currentEvents = getFilteredEvents(); 
+            for (let i = 1; i <= daysInMonth; i++) {
+                let cellDateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`; let cellTime = parseDateObj(cellDateStr); let cellDateObj = new Date(cellTime);
+                let isToday = (i === new Date(TODAY_TIME).getDate() && month === new Date(TODAY_TIME).getMonth() && year === new Date(TODAY_TIME).getFullYear());
+                let bgClass = isToday ? "bg-blue-50/50 border-blue-200" : "bg-white hover:bg-gray-50 border-gray-100";
+                let dateClass = (cellDateObj.getDay() === 0 || cellDateObj.getDay() === 6) ? "text-red-500" : "text-gray-700";
+                let isMonthStart = (i === 1); let isWeekStart = (cellDateObj.getDay() === 1); 
+
+                let eventsHtml = '';
+                currentEvents.forEach(ev => {
+                    let phase = ""; let color = ""; let isPhaseStart = false;
+                    if (cellTime >= ev.creation && cellTime < ev.play) { phase = "创作"; color = "bg-green-500"; isPhaseStart = (cellTime === ev.creation); } 
+                    else if (cellTime >= ev.play && cellTime < ev.review) { phase = "游玩"; color = "bg-blue-500"; isPhaseStart = (cellTime === ev.play); } 
+                    else if (cellTime >= ev.review && cellTime < ev.public) { phase = "评审"; color = "bg-yellow-500"; isPhaseStart = (cellTime === ev.review); } 
+                    else if (cellTime >= ev.public && cellTime <= ev.end) { phase = "公示"; color = "bg-purple-500"; isPhaseStart = (cellTime === ev.public); }
+                    if (phase) {
+                        let tooltipText = `《${ev.name}》- ${phase}期`;
+                        let text = (isPhaseStart || isWeekStart || isMonthStart) ? `${ev.name} (${phase})` : `&nbsp;`;
+                        eventsHtml += `<div title="${tooltipText}" class="timeline-bar ${color} w-full cursor-help hover:opacity-90 transition-opacity">${text}</div>`;
+                    }
+                });
+
+                html += `<div class="h-24 lg:h-28 border-b border-r ${bgClass} relative flex flex-col overflow-y-auto no-scrollbar pb-1"><div class="flex justify-between items-start p-1.5 mb-1">${isToday ? `<span class="bg-blue-600 text-white text-[10px] px-1 rounded shadow-sm">今</span>` : '<span></span>'}<span class="${dateClass} font-bold text-sm ${isToday ? 'text-blue-600' : ''}">${i}</span></div><div class="w-full flex-grow flex flex-col gap-px">${eventsHtml}</div></div>`;
+            }
+            grid.innerHTML = html;
+        }
+        function changeMonth(delta) { currentMonth += delta; if (currentMonth > 11) { currentMonth = 0; currentYear++; } else if (currentMonth < 0) { currentMonth = 11; currentYear--; } renderCalendar(currentYear, currentMonth); }
+
+        function renderAll() { renderCards(); renderCalendar(currentYear, currentMonth); updateReminders(); }
+
+        // --- 表单提交等事件 ---
+        function toggleReward(event, id, type) {
+            event.stopPropagation();
+            let ev = timelineEvents.find(x => x.id === id);
+            if(ev) { ev.rewards[type] = !ev.rewards[type]; saveData(); renderAll(); }
+        }
+
+        function validateDates(d1, d2, d3, d4, d5) {
+            let t1 = parseDateObj(d1), t2 = parseDateObj(d2), t3 = parseDateObj(d3), t4 = parseDateObj(d4), t5 = parseDateObj(d5);
+            if (t1 >= t2 || t2 >= t3 || t3 >= t4 || t4 >= t5) { alert("时间设置有误！请确保【创作期 < 游玩期 < 评审期 < 公示期 < 赛事结束】时间严格递增。"); return false; }
+            return true;
+        }
+
+        document.getElementById('create-event-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const sDate = document.getElementById('ev-start').value, pDate = document.getElementById('ev-play').value;
+            const rDate = document.getElementById('ev-review').value, puDate = document.getElementById('ev-public').value, enDate = document.getElementById('ev-end').value;
+            const prizeNum = parseInt(document.getElementById('ev-prize').value) || 0; 
+            const seasonId = document.getElementById('ev-season').value;
+            const imgUrl = document.getElementById('ev-image-url').value.trim();
+            
+            if (!validateDates(sDate, pDate, rDate, puDate, enDate)) return;
+            if (!imgUrl) return alert('请输入头图 URL！');
+
+            timelineEvents.push({ 
+                id: 'ev-' + Date.now(), name: document.getElementById('ev-title').value, imgSrc: imgUrl, prize: prizeNum, seasonId: seasonId,
+                creation: parseDateObj(sDate), play: parseDateObj(pDate), review: parseDateObj(rDate), public: parseDateObj(puDate), end: parseDateObj(enDate), 
+                artLink: document.getElementById('ev-art-link').value, tableLink: document.getElementById('ev-table-link').value,
+                rewards: { cash: false, prop: false }
+            });
+            saveData(); renderAll(); renderDataEventList(); 
+            closeCreateModal();
+            if (document.getElementById('tab-content-data').style.display === 'flex') renderAllCharts();
+        });
+
+        function openEditModal(id) {
+            let ev = timelineEvents.find(x => x.id === id);
+            if(!ev) return;
+            document.getElementById('edit-card-id').value = ev.id; document.getElementById('edit-title').value = ev.name;
+            document.getElementById('edit-prize').value = ev.prize || 0; document.getElementById('edit-season').value = ev.seasonId || "none";
+            document.getElementById('edit-img-preview').src = ev.imgSrc; document.getElementById('edit-img-src-hidden').value = ev.imgSrc;
+            document.getElementById('edit-d1').value = formatDateStr(ev.creation); document.getElementById('edit-d2').value = formatDateStr(ev.play);
+            document.getElementById('edit-d3').value = formatDateStr(ev.review); document.getElementById('edit-d4').value = formatDateStr(ev.public); document.getElementById('edit-d5').value = formatDateStr(ev.end);
+            document.getElementById('edit-art-link').value = ev.artLink || ""; document.getElementById('edit-table-link').value = ev.tableLink || "";
+            document.getElementById('editModal').classList.remove('hidden');
+        }
+
+        document.getElementById('edit-event-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const sDate = document.getElementById('edit-d1').value, pDate = document.getElementById('edit-d2').value;
+            const rDate = document.getElementById('edit-d3').value, puDate = document.getElementById('edit-d4').value, enDate = document.getElementById('edit-d5').value;
+            const prizeNum = parseInt(document.getElementById('edit-prize').value) || 0;
+            if (!validateDates(sDate, pDate, rDate, puDate, enDate)) return;
+
+            let ev = timelineEvents.find(x => x.id === document.getElementById('edit-card-id').value);
+            if(ev) { 
+                ev.name = document.getElementById('edit-title').value; ev.imgSrc = document.getElementById('edit-img-src-hidden').value; 
+                ev.prize = prizeNum; ev.seasonId = document.getElementById('edit-season').value;
+                ev.creation = parseDateObj(sDate); ev.play = parseDateObj(pDate); ev.review = parseDateObj(rDate); ev.public = parseDateObj(puDate); ev.end = parseDateObj(enDate);
+                ev.artLink = document.getElementById('edit-art-link').value; ev.tableLink = document.getElementById('edit-table-link').value;
+            }
+            saveData(); renderAll(); renderDataEventList();
+            document.getElementById('editModal').classList.add('hidden');
+            if (document.getElementById('tab-content-data').style.display === 'flex') renderAllCharts();
+        });
+
+        function deleteCurrentEvent() {
+            const cardId = document.getElementById('edit-card-id').value;
+            if(confirm("确定要永久删除该赛事吗？此操作不可恢复！")) {
+                timelineEvents = timelineEvents.filter(ev => ev.id !== cardId);
+                saveData(); renderAll(); renderDataEventList();
+                document.getElementById('editModal').classList.add('hidden');
+                if (document.getElementById('tab-content-data').style.display === 'flex') renderAllCharts();
+            }
+        }
+
+
+        // ================= Tab2: 赛事数据面板 (录入与独立的 ECharts) =================
+        function renderDataEventList() {
+            const listContainer = document.getElementById('data-event-list');
+            let html = '';
+            let sorted = [...timelineEvents].sort((a,b) => b.creation - a.creation);
+            
+            sorted.forEach(ev => {
+                let colorClass = ''; let isEnded = TODAY_TIME >= ev.end; let isFullyIssued = ev.rewards.cash && ev.rewards.prop;
+                if (isEnded && isFullyIssued) { colorClass = 'text-gray-500 font-bold'; } 
+                else if (isEnded && !isFullyIssued) { colorClass = 'text-red-500 font-bold'; } 
+                else if (TODAY_TIME >= ev.creation && TODAY_TIME < ev.review) { colorClass = 'text-green-600 font-bold'; } 
+                else if (TODAY_TIME >= ev.review && TODAY_TIME < ev.public) { colorClass = 'text-yellow-500 font-bold'; } 
+                else if (TODAY_TIME >= ev.public && TODAY_TIME < ev.end) { colorClass = 'text-blue-500 font-bold'; } 
+                else { colorClass = 'text-gray-400'; }
+
+                html += `<li onclick="openDataModal('${ev.id}')" class="p-3 border-b border-gray-100 cursor-pointer hover:bg-gray-100 transition rounded flex items-center justify-between"><span class="${colorClass} truncate"><i class="fa-solid fa-chart-simple mr-2 opacity-50"></i>${ev.name}</span><i class="fa-solid fa-chevron-right text-gray-300 text-xs"></i></li>`;
+            });
+            listContainer.innerHTML = html || '<li class="p-3 text-gray-400 text-xs text-center">暂无任何赛事</li>';
+        }
+
+        function openDataModal(id) {
+            let ev = timelineEvents.find(x => x.id === id);
+            if(!ev) return;
+            document.getElementById('data-card-id').value = ev.id; document.getElementById('data-modal-event-name').innerText = "当前赛事：" + ev.name;
+            document.getElementById('data-play-count').value = ev.dataPlayCount || ''; document.getElementById('data-map-count').value = ev.dataMapCount || ''; document.getElementById('data-valid-map').value = ev.dataValidMap || '';
+
+            const endedFieldsBox = document.getElementById('data-ended-fields');
+            if (TODAY_TIME >= ev.end) {
+                endedFieldsBox.classList.remove('hidden');
+                document.getElementById('data-single-count').value = ev.dataSingleCount || ''; document.getElementById('data-single-total').value = ev.dataSingleTotal || '';
+                document.getElementById('data-pop-count').value = ev.dataPopCount || ''; document.getElementById('data-pop-total').value = ev.dataPopTotal || '';
+                document.getElementById('data-public-link').value = ev.dataPublicLink || '';
+            } else { endedFieldsBox.classList.add('hidden'); }
+            document.getElementById('dataModal').classList.remove('hidden');
+        }
+
+        document.getElementById('data-entry-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const id = document.getElementById('data-card-id').value;
+            let ev = timelineEvents.find(x => x.id === id);
+            if(ev) {
+                ev.dataPlayCount = parseInt(document.getElementById('data-play-count').value) || 0; ev.dataMapCount = parseInt(document.getElementById('data-map-count').value) || 0; ev.dataValidMap = parseInt(document.getElementById('data-valid-map').value) || 0;
+                if (TODAY_TIME >= ev.end) {
+                    ev.dataSingleCount = parseInt(document.getElementById('data-single-count').value) || 0; ev.dataSingleTotal = parseInt(document.getElementById('data-single-total').value) || 0;
+                    ev.dataPopCount = parseInt(document.getElementById('data-pop-count').value) || 0; ev.dataPopTotal = parseInt(document.getElementById('data-pop-total').value) || 0;
+                    ev.dataPublicLink = document.getElementById('data-public-link').value;
+                }
+                saveData(); renderAllCharts(); // 重新计算并渲染所有 ECharts
+            }
+            document.getElementById('dataModal').classList.add('hidden');
+        });
+
+        // ================= 重点：分离维度的 ECharts 数据引擎 =================
+        function initCharts() {
+            if(!mapChart) mapChart = echarts.init(document.getElementById('chart-maps'));
+            if(!amountChart) amountChart = echarts.init(document.getElementById('chart-amounts'));
+            if(!countChart) countChart = echarts.init(document.getElementById('chart-counts'));
+            window.addEventListener('resize', () => { if(mapChart) mapChart.resize(); if(amountChart) amountChart.resize(); if(countChart) countChart.resize(); });
+        }
+
+        // 核心数据聚合函数：传入你要的维度（event, season, month），返回处理好的 X轴和 Y轴数组
+        function getAggregatedData(dimension) {
+            let xAxisData = []; let mapData = [];
+            let amtSingle = [], amtPop = [], amtTotal = [];
+            let cntSingle = [], cntPop = [], cntTotal = [];
+
+            if (dimension === 'event') {
+                let sorted = [...timelineEvents].sort((a,b) => a.creation - b.creation);
+                sorted.forEach(ev => {
+                    xAxisData.push(ev.name); mapData.push(ev.dataValidMap || 0);
+                    let sAmt = ev.dataSingleTotal || 0; let pAmt = ev.dataPopTotal || 0;
+                    amtSingle.push(sAmt); amtPop.push(pAmt); amtTotal.push(sAmt + pAmt);
+                    let sCnt = ev.dataSingleCount || 0; let pCnt = ev.dataPopCount || 0;
+                    cntSingle.push(sCnt); cntPop.push(pCnt); cntTotal.push(sCnt + pCnt);
+                });
+            } else if (dimension === 'season') {
+                seasons.forEach(s => {
+                    xAxisData.push(s.name);
+                    let evs = timelineEvents.filter(e => e.seasonId === s.id);
+                    let sumMap = 0, sumSAmt = 0, sumPAmt = 0, sumSCnt = 0, sumPCnt = 0;
+                    evs.forEach(ev => {
+                        sumMap += (ev.dataValidMap || 0);
+                        sumSAmt += (ev.dataSingleTotal || 0); sumPAmt += (ev.dataPopTotal || 0);
+                        sumSCnt += (ev.dataSingleCount || 0); sumPCnt += (ev.dataPopCount || 0);
+                    });
+                    mapData.push(sumMap); amtSingle.push(sumSAmt); amtPop.push(sumPAmt); amtTotal.push(sumSAmt + sumPAmt);
+                    cntSingle.push(sumSCnt); cntPop.push(sumPCnt); cntTotal.push(sumSCnt + sumPCnt);
+                });
+            } else if (dimension === 'month') {
+                let groups = {};
+                timelineEvents.forEach(ev => {
+                    let d = new Date(ev.creation); let key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+                    if(!groups[key]) groups[key] = { maps:0, amtS:0, amtP:0, cntS:0, cntP:0 };
+                    groups[key].maps += (ev.dataValidMap || 0);
+                    groups[key].amtS += (ev.dataSingleTotal || 0); groups[key].amtP += (ev.dataPopTotal || 0);
+                    groups[key].cntS += (ev.dataSingleCount || 0); groups[key].cntP += (ev.dataPopCount || 0);
+                });
+                let sortedKeys = Object.keys(groups).sort();
+                sortedKeys.forEach(k => {
+                    xAxisData.push(k); mapData.push(groups[k].maps);
+                    amtSingle.push(groups[k].amtS); amtPop.push(groups[k].amtP); amtTotal.push(groups[k].amtS + groups[k].amtP);
+                    cntSingle.push(groups[k].cntS); cntPop.push(groups[k].cntP); cntTotal.push(groups[k].cntS + groups[k].cntP);
+                });
+            }
+            return { xAxisData, mapData, amtSingle, amtPop, amtTotal, cntSingle, cntPop, cntTotal };
+        }
+
+        const commonChartOptions = {
+            tooltip: { trigger: 'axis', backgroundColor: 'rgba(255,255,255,0.9)', textStyle: { color: '#333' } },
+            grid: { left: '4%', right: '4%', bottom: '5%', top: '15%', containLabel: true },
+            xAxis: { type: 'category', boundaryGap: false, axisLine: { lineStyle: { color: '#ddd' } }, axisLabel: { color: '#666' } },
+            yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed', color: '#eee' } } }
+        };
+
+        // 独立渲染图表 1
+        function renderMapChart() {
+            if(!mapChart) return;
+            const dim = document.getElementById('chart-dim-maps').value;
+            const data = getAggregatedData(dim);
+            mapChart.setOption({
+                ...commonChartOptions, color: ['#6366f1'],
+                xAxis: { ...commonChartOptions.xAxis, data: data.xAxisData },
+                series: [{ name: '有效地图数', type: 'line', smooth: true, data: data.mapData, areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{offset: 0, color: 'rgba(99,102,241,0.4)'}, {offset: 1, color: 'rgba(99,102,241,0.1)'}]) } }]
+            });
+        }
+
+        // 独立渲染图表 2
+        function renderAmountChart() {
+            if(!amountChart) return;
+            const dim = document.getElementById('chart-dim-amounts').value;
+            const data = getAggregatedData(dim);
+            amountChart.setOption({
+                ...commonChartOptions, color: ['#f59e0b', '#10b981', '#3b82f6'],
+                legend: { data: ['总金额', '单项奖', '人气奖'], bottom: 0, icon: 'circle', itemWidth: 10 },
+                grid: { ...commonChartOptions.grid, bottom: '15%' },
+                xAxis: { ...commonChartOptions.xAxis, data: data.xAxisData },
+                series: [
+                    { name: '总金额', type: 'line', smooth: true, data: data.amtTotal, symbolSize: 6, itemStyle: { borderWidth: 2 } },
+                    { name: '单项奖', type: 'line', smooth: true, data: data.amtSingle, lineStyle: { width: 2 } },
+                    { name: '人气奖', type: 'line', smooth: true, data: data.amtPop, lineStyle: { width: 2 } }
+                ]
+            });
+        }
+
+        // 独立渲染图表 3
+        function renderCountChart() {
+            if(!countChart) return;
+            const dim = document.getElementById('chart-dim-counts').value;
+            const data = getAggregatedData(dim);
+            countChart.setOption({
+                ...commonChartOptions, color: ['#8b5cf6', '#14b8a6', '#f43f5e'],
+                legend: { data: ['总奖项', '单项奖', '人气奖'], bottom: 0, icon: 'circle', itemWidth: 10 },
+                grid: { ...commonChartOptions.grid, bottom: '15%' },
+                xAxis: { ...commonChartOptions.xAxis, data: data.xAxisData },
+                series: [
+                    { name: '总奖项', type: 'line', smooth: true, data: data.cntTotal, symbolSize: 6, itemStyle: { borderWidth: 2 } },
+                    { name: '单项奖', type: 'line', smooth: true, data: data.cntSingle, lineStyle: { width: 2 } },
+                    { name: '人气奖', type: 'line', smooth: true, data: data.cntPop, lineStyle: { width: 2 } }
+                ]
+            });
+        }
+
+        // 一把梭刷新所有图表
+        function renderAllCharts() {
+            renderMapChart();
+            renderAmountChart();
+            renderCountChart();
+        }
+
+        // ================= 启动程序 =================
+        loadData();
+        renderAll();
+    </script>
+</body>
+</html>
