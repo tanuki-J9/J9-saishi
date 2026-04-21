@@ -350,10 +350,10 @@
     <script>
         // ================= 云同步配置 =================
         const DEFAULT_CONFIG = {
-            workerUrl: '',
-            authToken: '',
+            workerUrl: 'https://j9-saishi.pages.dev/api',
+            authToken: '789asdasd',
             githubToken: '',
-            githubRepo: 'tanuki-J9/J9-1',
+            githubRepo: 'tanuki-J9/J9-saishi',
             githubPath: 'index.html'
         };
         const CFG_KEY = 'yuanmeng_config';
@@ -606,6 +606,15 @@
         function saveData() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(timelineEvents));
             localStorage.setItem(SEASON_KEY, JSON.stringify(seasons));
+            // 自动推送到云端
+            const cfg = getConfig();
+            if (cfg.workerUrl && cfg.authToken) {
+                fetch(`${cfg.workerUrl}/data`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${cfg.authToken}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ events: timelineEvents, seasons: seasons })
+                }).then(r => r.ok && setSyncStatus('✅ 已同步', 2000)).catch(() => setSyncStatus('⚠️ 同步失败', 2000));
+            }
         }
 
         function updateSeasonDropdowns() {
@@ -994,6 +1003,37 @@
         // ================= 启动程序 =================
         loadData();
         renderAll();
+
+        // 自动从云端拉取（页面加载时，如果配置了 workerUrl 就自动拉取）
+        (async function autoSync() {
+            const cfg = getConfig();
+            if (!cfg.workerUrl || !cfg.authToken) {
+                // 未配置时弹出设置面板
+                setTimeout(() => {
+                    document.getElementById('settingsModal').classList.remove('hidden');
+                    fillSettingsForm();
+                }, 500);
+                return;
+            }
+            setSyncStatus('同步中...');
+            try {
+                const res = await fetch(`${cfg.workerUrl}/data`, {
+                    headers: { 'Authorization': `Bearer ${cfg.authToken}` }
+                });
+                if (!res.ok) throw new Error(`状态码 ${res.status}`);
+                const data = await res.json();
+                if (data.events && data.events.length > 0) {
+                    timelineEvents = data.events;
+                }
+                if (data.seasons && data.seasons.length > 0) {
+                    seasons = data.seasons;
+                }
+                saveData(); updateSeasonDropdowns(); renderAll();
+                setSyncStatus('✅ 已同步', 3000);
+            } catch(e) {
+                setSyncStatus('⚠️ 拉取失败: ' + e.message, 4000);
+            }
+        })();
     </script>
 </body>
 </html>
