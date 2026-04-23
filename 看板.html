@@ -711,7 +711,11 @@
                 else if (TODAY_TIME >= ev.creation && TODAY_TIME < ev.play) { nextPhaseName = '游玩期'; daysLeft = Math.ceil((ev.play - TODAY_TIME)/86400000); colorClass = 'text-blue-600'; } 
                 else if (TODAY_TIME >= ev.play && TODAY_TIME < ev.review) { nextPhaseName = '评审期'; daysLeft = Math.ceil((ev.review - TODAY_TIME)/86400000); colorClass = 'text-yellow-600'; } 
                 else if (TODAY_TIME >= ev.review && TODAY_TIME < ev.public) { nextPhaseName = '公示期'; daysLeft = Math.ceil((ev.public - TODAY_TIME)/86400000); colorClass = 'text-purple-600'; }
-                if (daysLeft > 0 && daysLeft <= 3) {
+                // 评审期进行中：始终显示倒计时
+                if (TODAY_TIME >= ev.review && TODAY_TIME < ev.public) {
+                    let daysToPublic = Math.ceil((ev.public - TODAY_TIME) / 86400000);
+                    stageHtml += `<li class="bg-yellow-50/80 p-2 rounded-lg shadow-sm border border-yellow-200 relative overflow-hidden"><div class="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500"></div><span class="font-bold text-yellow-700 ml-1">《${ev.name}》</span><br><span class="ml-1 text-yellow-700">评审期进行中，距结束还有 <span class="font-bold text-red-500">${daysToPublic}</span> 天</span></li>`;
+                } else if (daysLeft > 0 && daysLeft <= 3) {
                     stageHtml += `<li class="bg-white/80 p-2 rounded-lg shadow-sm border border-gray-100 relative overflow-hidden"><div class="absolute left-0 top-0 bottom-0 w-1 bg-yellow-400"></div><span class="font-bold ${colorClass} ml-1">《${ev.name}》</span><br><span class="ml-1">距进入${nextPhaseName}仅剩 <span class="font-bold text-red-500">${daysLeft}</span> 天</span></li>`;
                 }
 
