@@ -954,12 +954,11 @@
                 else { colorClass = 'text-gray-400'; }
 
                 const isCreation = TODAY_TIME >= ev.creation && TODAY_TIME < ev.play;
-                let weeklyFilled2 = false;
+                const wd2 = ev.weeklyData || {};
+                let weeklyFilled2 = wd2.play !== null && wd2.play !== undefined && wd2.submit !== null && wd2.submit !== undefined && wd2.valid !== null && wd2.valid !== undefined;
+                // 计算月度是否有待提醒（对所有赛事，直接遍历创作期各月，有未填即 alert）
                 let monthlyAlert2 = false;
-                if (isCreation) {
-                    const wd2 = ev.weeklyData || {};
-                    weeklyFilled2 = wd2.play !== null && wd2.play !== undefined && wd2.submit !== null && wd2.submit !== undefined && wd2.valid !== null && wd2.valid !== undefined;
-                    // 计算月度是否有待提醒
+                {
                     const creationDate2 = new Date(ev.creation);
                     const lastDayOfCreation2 = new Date(ev.play - 86400000);
                     let yr2 = creationDate2.getFullYear();
@@ -967,21 +966,11 @@
                     const endYr2 = lastDayOfCreation2.getFullYear();
                     const endMo2 = lastDayOfCreation2.getMonth();
                     while (yr2 < endYr2 || (yr2 === endYr2 && mo2 <= endMo2)) {
-                        const isLastMonth2 = (yr2 === endYr2 && mo2 === endMo2);
-                        let deadlineMs2;
-                        if (isLastMonth2) {
-                            deadlineMs2 = ev.play - 86400000;
-                        } else {
-                            deadlineMs2 = new Date(yr2, mo2 + 1, 0).getTime();
-                        }
                         const monthKey2 = `${yr2}-${String(mo2+1).padStart(2,'0')}`;
-                        const remind3days2 = deadlineMs2 - 3 * 86400000;
-                        if (TODAY_TIME >= remind3days2) {
-                            const monthlyData2 = ev.monthlyData || [];
-                            const record2 = monthlyData2.find(r => r.month === monthKey2);
-                            const filled2 = record2 && record2.play !== null && record2.submit !== null && record2.valid !== null;
-                            if (!filled2) { monthlyAlert2 = true; break; }
-                        }
+                        const monthlyData2 = ev.monthlyData || [];
+                        const record2 = monthlyData2.find(r => r.month === monthKey2);
+                        const filled2 = record2 && record2.play !== null && record2.submit !== null && record2.valid !== null;
+                        if (!filled2) { monthlyAlert2 = true; break; }
                         mo2++;
                         if (mo2 > 11) { mo2 = 0; yr2++; }
                     }
@@ -995,14 +984,14 @@
                         <span class="${colorClass} truncate"><i class="fa-solid fa-chart-simple mr-2 opacity-50"></i>${ev.name}</span>
                         <i class="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
                     </div>
-                    ${isCreation ? `<div class="px-3 pb-2 flex gap-2">
+                    <div class="px-3 pb-2 flex gap-2">
                         <button onclick="event.stopPropagation(); openWeeklyModal('${ev.id}')" class="relative flex-1 text-[10px] font-bold py-1 rounded border ${weeklyBtnClass2}">
                             📊 首周数据${weeklyRedDot2}
                         </button>
                         <button onclick="event.stopPropagation(); openMonthlyModal('${ev.id}')" class="relative flex-1 text-[10px] font-bold py-1 rounded border ${monthlyBtnClass2}">
                             📅 月度数据${monthlyRedDot2}
                         </button>
-                    </div>` : ''}
+                    </div>
                 </li>`;
             });
             listContainer.innerHTML = html || '<li class="p-3 text-gray-400 text-xs text-center">暂无任何赛事</li>';
