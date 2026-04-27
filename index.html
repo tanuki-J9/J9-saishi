@@ -1103,15 +1103,39 @@
             const dim = document.getElementById('chart-dim-maps').value;
 
             if (dim === 'weekly') {
-                // 首周维度：横轴=各赛事名，纵轴=首周有效投稿数
                 let sorted = [...timelineEvents].sort((a,b) => a.creation - b.creation);
                 let xAxisData = sorted.map(ev => ev.name);
-                let mapData = sorted.map(ev => (ev.weeklyData && ev.weeklyData.valid !== null) ? ev.weeklyData.valid : 0);
+                // 多色调色板
+                const palette = ['#6366f1','#f97316','#10b981','#f59e0b','#3b82f6','#ec4899','#8b5cf6','#14b8a6','#f43f5e','#84cc16'];
+                let mapData = sorted.map((ev, idx) => ({
+                    value: (ev.weeklyData && ev.weeklyData.valid !== null) ? ev.weeklyData.valid : 0,
+                    itemStyle: { color: palette[idx % palette.length], borderRadius: [4,4,0,0] }
+                }));
                 mapChart.setOption({
-                    ...commonChartOptions, color: ['#f97316'],
-                    xAxis: { ...commonChartOptions.xAxis, data: xAxisData },
-                    series: [{ name: '首周有效投稿数', type: 'bar', data: mapData, itemStyle: { borderRadius: [4,4,0,0] } }]
-                });
+                    ...commonChartOptions,
+                    xAxis: {
+                        type: 'category',
+                        data: xAxisData,
+                        axisLabel: {
+                            color: '#666',
+                            interval: 0,
+                            rotate: xAxisData.length > 4 ? 30 : 0,
+                            fontSize: 10,
+                            overflow: 'truncate',
+                            width: 80
+                        },
+                        axisLine: { lineStyle: { color: '#ddd' } }
+                    },
+                    yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed', color: '#eee' } } },
+                    grid: { left: '4%', right: '4%', bottom: xAxisData.length > 4 ? '20%' : '12%', top: '10%', containLabel: true },
+                    series: [{
+                        name: '首周有效投稿数',
+                        type: 'bar',
+                        barMaxWidth: 36,
+                        data: mapData,
+                        label: { show: true, position: 'top', fontSize: 10, color: '#555' }
+                    }]
+                }, true);
                 return;
             }
 
