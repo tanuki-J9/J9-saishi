@@ -720,6 +720,10 @@
                     stageHtml += `<li class="bg-white/80 p-2 rounded-lg shadow-sm border border-gray-100 relative overflow-hidden"><div class="absolute left-0 top-0 bottom-0 w-1 bg-yellow-400"></div><span class="font-bold ${colorClass} ml-1">《${ev.name}》</span><br><span class="ml-1">距进入${nextPhaseName}仅剩 <span class="font-bold text-red-500">${daysLeft}</span> 天</span></li>`;
                 }
 
+                // ===== 首周数据提醒 / 月度数据提醒（仅对 2026-04-01 及之后开始创作期的赛事）=====
+                const REMIND_START_MS = new Date('2026-04-01T00:00:00').getTime();
+                if (ev.creation >= REMIND_START_MS) {
+
                 // ===== 首周数据提醒 =====
                 if (TODAY_TIME >= ev.creation && TODAY_TIME < ev.play) {
                     let weeklyDeadline = ev.creation + 7 * 86400000;
@@ -771,6 +775,8 @@
                         }
                     }
                 }
+
+                } // end REMIND_START_MS check
 
                 if (TODAY_TIME >= ev.end) {
                     let daysEnded = Math.floor((TODAY_TIME - ev.end) / 86400000);
@@ -1110,24 +1116,48 @@
             }
 
             if (dim === 'month') {
-                // 按自然月度：读取各赛事的 monthlyData，按月份汇总有效投稿数
-                let groups = {};
+                // 收集所有月份的并集
+                let monthSet = new Set();
                 timelineEvents.forEach(ev => {
-                    const monthlyData = ev.monthlyData || [];
-                    monthlyData.forEach(record => {
-                        if (!record.month) return;
-                        if (!groups[record.month]) groups[record.month] = 0;
-                        groups[record.month] += (record.valid !== null ? record.valid : 0);
+                    (ev.monthlyData || []).forEach(r => { if (r.month) monthSet.add(r.month); });
+                });
+                let allMonths = [...monthSet].sort();
+
+                if (allMonths.length === 0) {
+                    mapChart.setOption({
+                        ...commonChartOptions, color: ['#6366f1'],
+                        xAxis: { ...commonChartOptions.xAxis, data: [] },
+                        series: []
                     });
-                });
-                let sortedKeys = Object.keys(groups).sort();
-                let xAxisData = sortedKeys;
-                let mapData = sortedKeys.map(k => groups[k]);
+                    return;
+                }
+
+                // 每个赛事一条折线
+                let sorted = [...timelineEvents].sort((a,b) => a.creation - b.creation);
+                let series = sorted
+                    .filter(ev => (ev.monthlyData || []).length > 0)
+                    .map(ev => {
+                        let data = allMonths.map(month => {
+                            const record = (ev.monthlyData || []).find(r => r.month === month);
+                            return (record && record.valid !== null) ? record.valid : null;
+                        });
+                        return {
+                            name: ev.name,
+                            type: 'line',
+                            smooth: true,
+                            connectNulls: false,
+                            data: data,
+                            symbolSize: 6
+                        };
+                    });
+
                 mapChart.setOption({
-                    ...commonChartOptions, color: ['#6366f1'],
-                    xAxis: { ...commonChartOptions.xAxis, data: xAxisData },
-                    series: [{ name: '月度有效投稿数', type: 'line', smooth: true, data: mapData, areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{offset: 0, color: 'rgba(99,102,241,0.4)'}, {offset: 1, color: 'rgba(99,102,241,0.1)'}]) } }]
-                });
+                    ...commonChartOptions,
+                    legend: { show: true, bottom: 0, type: 'scroll', itemWidth: 10, icon: 'circle' },
+                    grid: { ...commonChartOptions.grid, bottom: '15%' },
+                    xAxis: { ...commonChartOptions.xAxis, data: allMonths },
+                    series: series
+                }, true);
                 return;
             }
 
