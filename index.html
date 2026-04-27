@@ -138,6 +138,7 @@
                             <h3 class="text-base font-bold text-gray-800 border-l-4 border-indigo-500 pl-2">有效地图投稿趋势</h3>
                             <select id="chart-dim-maps" onchange="renderMapChart()" class="border border-indigo-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-500 font-bold text-indigo-600 bg-indigo-50 cursor-pointer transition">
                                 <option value="event">按赛事维度</option>
+                                <option value="weekly">首周维度</option>
                                 <option value="month">按自然月度</option>
                                 <option value="season">按赛季汇总</option>
                             </select>
@@ -1105,6 +1106,43 @@
         function renderMapChart() {
             if(!mapChart) return;
             const dim = document.getElementById('chart-dim-maps').value;
+
+            if (dim === 'weekly') {
+                // 首周维度：横轴=各赛事名，纵轴=首周有效投稿数
+                let sorted = [...timelineEvents].sort((a,b) => a.creation - b.creation);
+                let xAxisData = sorted.map(ev => ev.name);
+                let mapData = sorted.map(ev => (ev.weeklyData && ev.weeklyData.valid !== null) ? ev.weeklyData.valid : 0);
+                mapChart.setOption({
+                    ...commonChartOptions, color: ['#f97316'],
+                    xAxis: { ...commonChartOptions.xAxis, data: xAxisData },
+                    series: [{ name: '首周有效投稿数', type: 'bar', data: mapData, itemStyle: { borderRadius: [4,4,0,0] } }]
+                });
+                return;
+            }
+
+            if (dim === 'month') {
+                // 按自然月度：读取各赛事的 monthlyData，按月份汇总有效投稿数
+                let groups = {};
+                timelineEvents.forEach(ev => {
+                    const monthlyData = ev.monthlyData || [];
+                    monthlyData.forEach(record => {
+                        if (!record.month) return;
+                        if (!groups[record.month]) groups[record.month] = 0;
+                        groups[record.month] += (record.valid !== null ? record.valid : 0);
+                    });
+                });
+                let sortedKeys = Object.keys(groups).sort();
+                let xAxisData = sortedKeys;
+                let mapData = sortedKeys.map(k => groups[k]);
+                mapChart.setOption({
+                    ...commonChartOptions, color: ['#6366f1'],
+                    xAxis: { ...commonChartOptions.xAxis, data: xAxisData },
+                    series: [{ name: '月度有效投稿数', type: 'line', smooth: true, data: mapData, areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{offset: 0, color: 'rgba(99,102,241,0.4)'}, {offset: 1, color: 'rgba(99,102,241,0.1)'}]) } }]
+                });
+                return;
+            }
+
+            // 其余维度（event/season）走原有 getAggregatedData 逻辑
             const data = getAggregatedData(dim);
             mapChart.setOption({
                 ...commonChartOptions, color: ['#6366f1'],
