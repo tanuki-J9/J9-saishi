@@ -720,63 +720,7 @@
                     stageHtml += `<li class="bg-white/80 p-2 rounded-lg shadow-sm border border-gray-100 relative overflow-hidden"><div class="absolute left-0 top-0 bottom-0 w-1 bg-yellow-400"></div><span class="font-bold ${colorClass} ml-1">《${ev.name}》</span><br><span class="ml-1">距进入${nextPhaseName}仅剩 <span class="font-bold text-red-500">${daysLeft}</span> 天</span></li>`;
                 }
 
-                // ===== 首周数据提醒 / 月度数据提醒（仅对 2026-04-01 及之后开始创作期的赛事）=====
-                const REMIND_START_MS = new Date('2026-04-01T00:00:00').getTime();
-                if (ev.creation >= REMIND_START_MS) {
-
-                // ===== 首周数据提醒 =====
-                if (TODAY_TIME >= ev.creation && TODAY_TIME < ev.play) {
-                    let weeklyDeadline = ev.creation + 7 * 86400000;
-                    let weeklyRemindStart = ev.creation + 4 * 86400000;
-                    if (TODAY_TIME >= weeklyRemindStart) {
-                        let wd = ev.weeklyData || {};
-                        let weeklyFilled = wd.play !== null && wd.play !== undefined && wd.submit !== null && wd.submit !== undefined && wd.valid !== null && wd.valid !== undefined;
-                        if (!weeklyFilled) {
-                            if (TODAY_TIME < weeklyDeadline) {
-                                let daysRemain = Math.ceil((weeklyDeadline - TODAY_TIME) / 86400000);
-                                stageHtml += `<li class="bg-orange-50 p-2 rounded-lg shadow-sm border border-orange-200 relative overflow-hidden"><div class="absolute left-0 top-0 bottom-0 w-1 bg-orange-400"></div><span class="font-bold text-orange-700 ml-1">《${ev.name}》</span><br><span class="ml-1 text-orange-600">距首周数据填写还有 <span class="font-bold">${daysRemain}</span> 天</span></li>`;
-                            } else {
-                                stageHtml += `<li class="bg-red-50 p-2.5 rounded-lg shadow-sm border border-red-200 relative overflow-hidden"><div class="absolute left-0 top-0 bottom-0 w-1 bg-red-500"></div><span class="font-bold text-red-700 ml-1">《${ev.name}》</span><br><span class="mt-1 ml-1 font-bold inline-block bg-red-100 text-red-600 border border-red-200 px-2 py-0.5 rounded text-[10px]">⚠️ 首周数据待填写</span></li>`;
-                            }
-                        }
-                    }
-                }
-
-                // ===== 月度数据提醒 =====
-                if (TODAY_TIME >= ev.creation) {
-                    let creationDate = new Date(ev.creation);
-                    let playPrevDate = new Date(ev.play - 86400000);
-                    let startYM = creationDate.getFullYear() * 12 + creationDate.getMonth();
-                    let endYM = playPrevDate.getFullYear() * 12 + playPrevDate.getMonth();
-                    let monthlyDataArr = ev.monthlyData || [];
-                    for (let ym = startYM; ym <= endYM; ym++) {
-                        let y = Math.floor(ym / 12); let m = ym % 12;
-                        let isLast = (ym === endYM);
-                        let deadlineDate;
-                        if (isLast) {
-                            deadlineDate = new Date(ev.play - 86400000);
-                        } else {
-                            deadlineDate = new Date(y, m + 1, 0);
-                        }
-                        let deadlineTime = new Date(y, deadlineDate.getMonth(), deadlineDate.getDate()).getTime();
-                        let remindStart = deadlineTime - 3 * 86400000;
-                        if (TODAY_TIME >= remindStart) {
-                            let monthKey = `${y}-${String(m+1).padStart(2,'0')}`;
-                            let rec = monthlyDataArr.find(r => r.month === monthKey);
-                            let filled = rec && rec.play !== null && rec.play !== undefined && rec.submit !== null && rec.submit !== undefined && rec.valid !== null && rec.valid !== undefined;
-                            if (!filled) {
-                                if (TODAY_TIME < deadlineTime) {
-                                    let daysRemain = Math.ceil((deadlineTime - TODAY_TIME) / 86400000);
-                                    stageHtml += `<li class="bg-teal-50 p-2 rounded-lg shadow-sm border border-teal-200 relative overflow-hidden"><div class="absolute left-0 top-0 bottom-0 w-1 bg-teal-400"></div><span class="font-bold text-teal-700 ml-1">《${ev.name}》</span><br><span class="ml-1 text-teal-600">${m+1}月数据待填写，还有 <span class="font-bold">${daysRemain}</span> 天</span></li>`;
-                                } else {
-                                    stageHtml += `<li class="bg-red-50 p-2.5 rounded-lg shadow-sm border border-red-200 relative overflow-hidden"><div class="absolute left-0 top-0 bottom-0 w-1 bg-red-500"></div><span class="font-bold text-red-700 ml-1">《${ev.name}》</span><br><span class="mt-1 ml-1 font-bold inline-block bg-red-100 text-red-600 border border-red-200 px-2 py-0.5 rounded text-[10px]">⚠️ ${m+1}月数据未填写</span></li>`;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                } // end REMIND_START_MS check
+                // ===== 首周数据提醒 / 月度数据提醒 已移除（不在阶段变更提醒中显示数据类提醒）=====
 
                 if (TODAY_TIME >= ev.end) {
                     let daysEnded = Math.floor((TODAY_TIME - ev.end) / 86400000);
